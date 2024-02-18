@@ -3,6 +3,25 @@ import {ApiError} from "../utils/ApiError.js"
 import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
+import fs from "fs"  // fix nantar bug
+
+const generateAccessAndRefreshTokens = async(userId)=>{
+    try {
+
+        const user = await User.findById(userId)
+        const accessToken= user.generateAccessToken()
+        const refreshToken= user.generateRefreshToken()
+
+        user.refreshToken=refreshToken
+        await user.save({validateBeforeSave:false})
+
+        return {accessToken,refreshToken}
+
+        
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong while generating refresh and access token")
+    }
+}
 
 
 const registerUser = asyncHandler(async (req,res)=>{
@@ -35,6 +54,7 @@ const registerUser = asyncHandler(async (req,res)=>{
     })
 
     if(existedUser){
+
         throw new ApiError(409,"User with email or username already exists")
     }
 
@@ -82,5 +102,98 @@ const registerUser = asyncHandler(async (req,res)=>{
 })
 
 
+const loginUser = asyncHandler(async(req,res)=>{
+    // req body => data
+    //  username || email
+    // find the user
+    // password check
+    // access and refresh Token
+    // send cookies
+    // res  login sull
 
-export {registerUser}
+    const {email,username,password}= req.body
+
+    if(!email || !username){
+        throw new ApiError(400,"username or email is required")
+    }
+
+   const user = await  User.findOne({
+        $or:[{username},{email}]
+    })
+
+    if(!user){
+        throw new ApiError(404,"User does not exist!")
+    }
+
+    //# imp : User :- its is mongodb ka mongoose ka ek object hai isaliye jo mongoose ke throw User ke pass jo methods hai use hum call kar sakate hai jaise ki User.findOne,User.findByIdAndUpdate aasise sab
+
+    //# Imp :  user :- 'user' jo object hai ho findOne method se mila hai aur uske pass vahi methods hote hai jo userne define kiye hai userSchema use karake jaise ki userSchema.methods.isPasswordCorrect then user.ispasswordCorrect() we can use
+    
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(401,"Invalid user credentials")
+    }
+
+   const {accessToken,refreshToken} =await generateAccessAndRefreshTokens(user._id)
+
+   const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+//    when you can write httpOnly:true and secure:true then not modified any one your cookies value its modified only from server 
+   const options = {
+    httpOnly:true,
+    secure:true
+   }
+
+    return res
+    .status(200)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user:loggedInUser,accessToken,refreshToken
+            },
+            "User logged In Successfully"
+        )
+    )
+   
+
+    
+})
+
+const logoutUser = asyncHandler(async(req,res)=>{
+    // cookies delete 
+    // refresh Token reset
+    // message suceefully loged out
+    await  User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                refreshToken:undefined
+            }
+        },
+        {
+            new:true
+        }
+      )
+
+      const options ={
+        httpOnly:true,
+        secure:true,
+      }
+
+      res
+      .status(200)
+      .clearCookie("accessToken",options)
+      .clearCookie("refreshToken",options)
+      .json(
+        new ApiResponse(200,{},"User logged Out")
+      )
+
+})
+
+
+export {registerUser,loginUser,logoutUser}
