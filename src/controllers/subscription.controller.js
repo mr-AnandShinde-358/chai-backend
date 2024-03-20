@@ -23,10 +23,10 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 
     try {
         
-     const subscriber =   await Subscription.findOne(Credential)
+     const subscriber =   await subscription.findOne(Credential)
 
      if(!subscriber){
-        const  sub = await Subscription.create(Credential)
+        const  sub = await subscription.create(Credential)
         return res 
         .status(200)
         .json(
@@ -34,7 +34,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
         )
         
      }else{
-        const  unsubscribe = await Subscription.deleteOne(Credential)
+        const  unsubscribe = await subscription.deleteOne(Credential)
 
         if(unsubscribe.deletedCount===0){
             throw new ApiError(404,"unable to unscribe")
@@ -55,7 +55,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     const {channelId} = req.params
 
-   const subscribers = await Subscription.find({
+   const subscribers = await subscription.find({
         subscriber:channelId
     })
 
@@ -75,7 +75,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params
 
-    const subscribers = await Subscription.find({
+    const subscribers = await subscription.find({
         channel:subscriberId
     })
 

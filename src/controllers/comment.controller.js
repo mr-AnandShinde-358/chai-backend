@@ -10,7 +10,23 @@ const getVideoComments = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10 } = req.query
 
     // const video = await Comment.find({video:videoId})
-    // username,userImage,content,likeCount,commentAt 
+    // username,userImage,content,likeCount,commentAt
+   
+
+    const findVideo = await Video.findById(videoId);
+
+      if (!findVideo) {
+        await Comment.deleteMany({ video: videoId });
+        return res
+          .status(200)
+          .json(
+            new ApiResponse(
+              404,
+              {},
+              "There is no such video and all associated comments have been deleted"
+            )
+          );
+      }
 
    const video =  await Comment.aggregate([
         {
