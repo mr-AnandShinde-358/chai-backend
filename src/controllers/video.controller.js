@@ -4,30 +4,52 @@ import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { deleteFileOnServer, deleteOnCloudinaryTypeImage, deleteOnCloudinaryTypeVideo, uploadOnCloudinary } from "../utils/cloudinary.js"
 import { asyncHandler } from "../utils/asyncHandler.js";
+import mongoose from "mongoose";
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
+    const { page = 1, limit = 10, query=`/^video/`, sortBy="createdAt", sortType=1, userId=req.user?._id } = req.query
+    console.log(userId)
     //TODO: get all videos based on query, sort, pagination
+    try {
+       const allVideos = await Video.aggregate([
+            {
+                $match:{
+                    owner:new mongoose.Types.ObjectId(userId),
+                    $or:[
+                        {title:{$regex:query,$options:'i'}},
+                        {description:{$regex:query,$options:'i'}}
+       ]
+                }
+            },
+            {
+                $sort:{
+                    [sortBy]:sortType
+                }
+            },
+            {
+                $skip:(page-1)*limit
+            },
+            {
+             $limit:parseInt(limit)   
+            }
+        ])
+
+        Video.aggregatePaginate(allVideos,{page,limit}).then((result)=>{
+            return res
+            .status(200)
+            .json(
+                new ApiResponse(200,result,"all videos fetches successfully")
+            )
+        })
+        
+    } catch (error) {
+        throw new ApiError(501,error.message||"internal server error")
+    }
 })
 
 
-// const getAllVideos = asyncHandler(async (req, res) => {
-//     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
 
-
-//     // const videos = await Video.find(query).sortBy(sortBy).limit(limit).sortType(sortType);
-//     const videos = await Video.find().limit(limit).sort(`${sortType}:${sortBy}`)
-
-//     return res
-//         .status(200)
-//         .json(
-//             new ApiResponse(200, videos, "all data fetched !")
-//         )
-
-
-
-// })
 
 const publishVideo = asyncHandler(async (req, res) => {
     // TODO: get video, upload to cloudinary, create video
@@ -108,7 +130,7 @@ const publishVideo = asyncHandler(async (req, res) => {
             )
 
     } catch (error) {
-       ApiError(401,"somthing worng while uploading video")
+      throw new ApiError(401,"somthing worng while uploading video")
     }
     finally{
         let newVideoFilePath
